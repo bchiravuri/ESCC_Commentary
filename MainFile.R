@@ -3,11 +3,13 @@ library(cancereffectsizeR)
 library(data.table)
 library(tidyverse)
 library(biomaRt)
+library(ggplot2)
 options(java.parameters = "-Xmx2g")
+
+# ONCE
 names(data)
 
-
-# set column names and delete extra row
+# set column names and delete extra row 
 colnames(data) <- c("Unique_Patient_Identifier")
 colnames(data)[2] <- c("Chromosome")
 colnames(data)[3] <- c("Start_Position")
@@ -28,6 +30,7 @@ write.table(
   quote = FALSE,
 )
 
+# END ONCE
 
 maf = preload_maf("ESCCdata.maf", refset = "ces.refset.hg38")
 maf = maf[germline_variant_site == F][repetitive_region == F | cosmic_site_tier %in% 1:3]
@@ -43,8 +46,8 @@ signature_exclusions <- suggest_cosmic_signature_exclusions(cancer_type = "Eso-S
 
 
 cesa <- trinuc_mutation_rates(cesa,
-  signature_set = ces.refset.hg38$signatures$COSMIC_v3.4,
-  signature_exclusions = signature_exclusions
+                              signature_set = ces.refset.hg38$signatures$COSMIC_v3.4,
+                              signature_exclusions = signature_exclusions
 )
 
 
@@ -64,17 +67,12 @@ cesa <- ces_variant(cesa = cesa, run_name = "non_recurrents", variants = cesa$va
 
 plot_effects(effects = cesa$selection$non_recurrents)
 plot_effects(cesa$selection$non_recurrents,
-  group_by = "gene", topn = 10,
-  label_individual_variants = FALSE
+             group_by = "gene", topn = 10,
+             label_individual_variants = FALSE
 )
 
-cesa$selection$recurrents %>% arrange(desc(included_total))
-
-
-cesa$selection$recurrents %>% arrange(desc(included_total))
+cesa$selection$non_recurrents %>% arrange(desc(included_total))
 View(cesa)
-
-# data %>% count(Hugo_Symbol) %>% arrange(desc(n)) %>% filter(Hugo_Symbol %in% c("TP53", "NOTCH1", "CSMD3", "EP300", "FAM135B", "KCNH7", "ZNF572"))
 
 #mutations per base pair (normalize for size)
 # count mutations per gene
@@ -83,9 +81,21 @@ gene_lengths <- data %>% count(Hugo_Symbol) %>% arrange(desc(n))
 
 # compute mutations per kilobase
 normalized <- mut_counts %>%
-  inner_join(gene_lengths, by = "gene") %>% mutate(length_kb = length / 1e3,
-         muts_per_kb = mutations / length_kb) %>%
-  arrange(desc(muts_per_kb))                                 
+  inner_join(gene_lengths, by = c("gene" = "Hugo_Symbol")) %>% mutate(length_kb = n / 1e3,
+                                                                      muts_per_kb = mutations / length_kb) %>%
+  arrange(desc(muts_per_kb))
 
 
-#filter out LINC
+#filter out LINC genes
+normalized_filtered <- normalized %>% filter(!str_starts(gene, "LINC"))
+
+# bar graph of mutations per kilobase
+normalized_filtered %>%
+  arrange(desc(muts_per_kb)) %>%
+  slice_head(n = 10) %>%
+  ggplot(aes(x = reorder(gene, muts_per_kb), y = muts_per_kb)) +
+  geom_col(fill = "seagreen") +
+  coord_flip() +
+  labs(title = "Top 10 Genes by Mutations per kb",
+       x = "Gene", y = "Mutations per kb") +
+  theme_minimal()
