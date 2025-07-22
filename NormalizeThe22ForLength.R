@@ -46,8 +46,8 @@ signature_exclusions <- suggest_cosmic_signature_exclusions(cancer_type = "Eso-S
 
 
 cesa <- trinuc_mutation_rates(cesa,
-                              signature_set = ces.refset.hg38$signatures$COSMIC_v3.4,
-                              signature_exclusions = signature_exclusions
+  signature_set = ces.refset.hg38$signatures$COSMIC_v3.4,
+  signature_exclusions = signature_exclusions
 )
 
 

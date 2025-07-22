@@ -89,12 +89,12 @@ list.files("C:/Users/bodhi/AppData/Local/R/win-library/4.5/ces.refset.hg38/refse
 
 gr_genes <- readRDS("C:/Users/bodhi/AppData/Local/R/win-library/4.5/ces.refset.hg38/refset/gr_genes.rds")
 
-gene_lengths <- as.data.table(gr_genes)[, .(length = sum(width(reduce(GRanges(seqnames, IRanges(start, end)))))), by = gene]
+gene_lengths2 <- as.data.table(gr_genes)[, .(length = sum(width(reduce(GRanges(seqnames, IRanges(start, end)))))), by = gene]
 
-write.csv(gene_lengths, "gene_lengths.csv")
+write.csv(gene_lengths2, "gene_lengths2.csv")
 
 normalized <- mut_counts %>%
-  inner_join(gene_lengths, by = "gene") %>% mutate(length_kb = length / 1e3,
+  inner_join(gene_lengths2, by = "gene") %>% mutate(length_kb = length / 1e3,
   muts_per_kb = mutations / length_kb) %>%
   arrange(desc(muts_per_kb))
 
