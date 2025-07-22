@@ -1,5 +1,9 @@
+# this is the tutorial except with the TCGA ESCA (ESCC) data
+
 library(cancereffectsizeR)
 library(data.table)
+library(GenomicRanges)
+library(BSgenome.Hsapiens.UCSC.hg38)
 setwd("ESCA_TCGA_Analysis")
 
 tcga_maf_file <- "TCGA-ESCA.maf.gz"
@@ -68,5 +72,33 @@ plot_effects(cesa$selection$ESCC_selection,
              group_by = "gene", topn = 20,
              label_individual_variants = FALSE
 )
+
+
+# most frequently mutated genes
+
+mut_counts <- cesa$variants %>% count(gene, name = "mutations")
+
+mut_counts %>% arrange(desc(mutations)) %>% head(n = 20)
+
+
+
+# normalizing for length
+
+cesa@ref_data_dir
+list.files("C:/Users/bodhi/AppData/Local/R/win-library/4.5/ces.refset.hg38/refset")
+
+gr_genes <- readRDS("C:/Users/bodhi/AppData/Local/R/win-library/4.5/ces.refset.hg38/refset/gr_genes.rds")
+
+gene_lengths <- as.data.table(gr_genes)[, .(length = sum(width(reduce(GRanges(seqnames, IRanges(start, end)))))), by = gene]
+
+write.csv(gene_lengths, "gene_lengths.csv")
+
+normalized <- mut_counts %>%
+  inner_join(gene_lengths, by = "gene") %>% mutate(length_kb = length / 1e3,
+  muts_per_kb = mutations / length_kb) %>%
+  arrange(desc(muts_per_kb))
+
+
+
 
 save_cesa(cesa = cesa, file = "escc_analysis.rds")
