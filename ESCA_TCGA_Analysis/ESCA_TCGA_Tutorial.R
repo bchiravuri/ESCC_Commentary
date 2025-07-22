@@ -1,14 +1,6 @@
-options(timeout = 600)
-remotes::install_github("Townsend-Lab-Yale/cancereffectsizeR", dependencies = TRUE, repos = BiocManager::repositories())
-BiocManager::install(version = "3.21")
-options(timeout = 600)
-remotes::install_github("Townsend-Lab-Yale/ces.refset.hg38@*release")
-
-dir.create("ESCA_TCGA_Analysis")
-setwd("ESCA_TCGA_Analysis")
-
 library(cancereffectsizeR)
 library(data.table)
+setwd("ESCA_TCGA_Analysis")
 
 tcga_maf_file <- "TCGA-ESCA.maf.gz"
 if (!file.exists(tcga_maf_file)) {
@@ -73,7 +65,7 @@ cesa <- ces_variant(cesa = cesa, run_name = "ESCC_selection")
 
 plot_effects(cesa$selection$ESCC_selection)
 plot_effects(cesa$selection$ESCC_selection,
-             group_by = "gene", topn = 10,
+             group_by = "gene", topn = 20,
              label_individual_variants = FALSE
 )
 
