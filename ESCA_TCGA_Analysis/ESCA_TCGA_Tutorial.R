@@ -69,8 +69,8 @@ cesa <- ces_variant(cesa = cesa, run_name = "ESCC_selection")
 
 plot_effects(cesa$selection$ESCC_selection)
 plot_effects(cesa$selection$ESCC_selection,
-             group_by = "gene", topn = 20,
-             label_individual_variants = FALSE
+  group_by = "gene", topn = 20,
+  label_individual_variants = FALSE
 )
 
 
