@@ -10,7 +10,7 @@ get_gene_mutations <- function(cesa, genes) {
   return(dt[])
 }
 
-my_genes <- c("TP53", "NOTCH1", "CSMD3", "EP300", "FAM135B", "TMEM121", "TARP", "DAD1", "TTN", "MUC16")
+my_genes <- c("TP53", "NOTCH1", "CSMD3", "EP300", "FAM135B", "TMEM121", "TARP", "DAD1", "TTN", "MUC16", "PIK3CA")
 mutations_in_my_genes <- get_gene_mutations(cesa, my_genes)
 print(mutations_in_my_genes)
 
@@ -72,3 +72,39 @@ collapse_variant_counts_by_gene <- function(variant_counts, cesa) {
 
 gene_counts <- collapse_variant_counts_by_gene(variant_counts, cesa)
 print(gene_counts)
+
+
+
+
+gene_unique_sample_counts <- function(cesa, genes = NULL) {
+  # take all genes if none supplied
+  if (is.null(genes)) {
+    genes <- unique(cesa$variants$gene)
+    genes <- genes[!is.na(genes)]
+  }
+  
+  # all non-silent AACs for those genes
+  aac_dt <- cesa$variants[
+    gene %in% genes & variant_type == "aac" & aa_ref != aa_alt & !is.na(gene),
+    .(gene, variant_id)
+  ]
+  
+  if (nrow(aac_dt) == 0L) {
+    warning("No non-silent AACs found for the provided genes.")
+    return(data.table(gene = character(), n_samples = integer()))
+  }
+  
+  # for each gene, collect unique samples over all its AACs (robust to bad IDs)
+  out <- aac_dt[, {
+    smpls <- unique(unlist(lapply(variant_id, function(v)
+      tryCatch(samples_with(cesa, v), error = function(e) character(0))
+    )))
+    .(n_samples = length(smpls))
+  }, by = gene][order(-n_samples)]
+  
+  out[]
+}
+
+# ---- Run for all genes ----
+all_gene_counts <- gene_unique_sample_counts(cesa)
+head(all_gene_counts, 20)
