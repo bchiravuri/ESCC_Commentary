@@ -7,7 +7,7 @@ library(cancereffectsizeR)
 setwd("Survival_Analysis")
 
 
-tcga_maf_file <- "TCGA-ESCA.maf.gz"
+tcga_maf_file <- "TCGA-ESCA-SA.maf.gz"
 if (!file.exists(tcga_maf_file)) {
   get_TCGA_project_MAF(project = "ESCA", filename = tcga_maf_file)
 }
