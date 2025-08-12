@@ -43,16 +43,16 @@ setnames(tcga_clinical_escc,
 
 # create OS time and status
 tcga_clinical_escc[, time := fifelse(!is.na(days_to_death),
-                                     as.numeric(days_to_death),
-                                     as.numeric(days_to_last_follow_up))]
+  as.numeric(days_to_death),
+  as.numeric(days_to_last_follow_up))]
 tcga_clinical_escc[, status := fifelse(vital_status == "Dead", 1L, 0L)]
 
 # helper functions for survival
 days_to_months <- function(x) as.numeric(x) / 30.4375
-build_surv_fields <- function(clin) { ... } # unchanged
-
-# function to run survival for one gene
-run_expression_survival <- function(expr_dt, clin_dt, gene_symbol, ...) { ... } # unchanged
+# build_surv_fields <- function(clin) { ... } # unchanged
+# 
+# # function to run survival for one gene
+# run_expression_survival <- function(expr_dt, clin_dt, gene_symbol, ...) { ... } # unchanged
 
 # load expression matrix
 expr_wide <- data.table::fread("TCGA-ESCA.star_fpkm.tsv")
@@ -75,7 +75,7 @@ ecDNA_genes_full     <- c("AZIN1-AS1","MMP12","PVT1","COX6C","SRSF1","MYC","BIRC
 my_genes             <- c("TP53","NOTCH1","PIK3CA")
 target_genes         <- c(ecDNA_genes_full, my_genes)
 
-# build symbol→Ensembl mapping
+# build symbol to Ensembl mapping
 map_all <- data.table::data.table()
 if (file.exists("gencode.v36.annotation.gtf.gene.probemap")) {
   pm <- data.table::fread("gencode.v36.annotation.gtf.gene.probemap", header = FALSE)
@@ -120,25 +120,6 @@ if (!("status" %in% names(tcga_clinical_escc))) {
 }
 tcga_clinical_escc[, time_months := time/30.44]
 
-# load DFS from Xena if available
-dfs_files <- c("TCGA-ESCA.survival.tsv", "TCGA-ESCA_survival.tsv", "TCGA-ESCA.clinical_and_survival.tsv")
-dfs_file  <- dfs_files[file.exists(dfs_files)][1]
-if (!is.na(dfs_file)) {
-  xena_surv <- data.table::fread(dfs_file)
-  barcode_col <- names(xena_surv)[which.max(grepl("^(sample|id|barcode)$", names(xena_surv), ignore.case = TRUE))]
-  if (is.na(barcode_col)) barcode_col <- names(xena_surv)[1]
-  xena_surv[, Unique_Patient_Identifier := substr(get(barcode_col), 1, 12)]
-  dfi_time_col <- names(xena_surv)[which.max(grepl("^dfi(\\.|_|)time$", names(xena_surv), ignore.case = TRUE))]
-  dfi_event_col <- names(xena_surv)[which.max(grepl("^dfi$", names(xena_surv), ignore.case = TRUE))]
-  keep_cols <- c("Unique_Patient_Identifier", dfi_time_col, dfi_event_col)
-  keep_cols <- keep_cols[!is.na(keep_cols)]
-  xena_keep <- unique(xena_surv[, ..keep_cols])
-  setnames(xena_keep, old = c(dfi_time_col, dfi_event_col), new = c("DFI_time", "DFI_event"), skip_absent = TRUE)
-  tcga_clinical_escc <- merge(tcga_clinical_escc, xena_keep, by = "Unique_Patient_Identifier", all.x = TRUE)
-  tcga_clinical_escc[, time_months := fifelse(!is.na(DFI_time), as.numeric(DFI_time), time_months)]
-  tcga_clinical_escc[, status := fifelse(!is.na(DFI_event), as.integer(DFI_event), status)]
-}
-
 # process covariates
 tcga_clinical_escc[, age_raw := suppressWarnings(as.numeric(`demographic.age_at_index`))]
 tcga_clinical_escc[, age := ifelse(mean(age_raw, na.rm = TRUE) > 200, age_raw/365.25, age_raw)]
@@ -154,15 +135,29 @@ if (!is.na(stage_col)) {
 # subset expression to ESCC patients
 expr_long <- expr_long[Unique_Patient_Identifier %in% tcga_clinical_escc$Unique_Patient_Identifier]
 
-# run survival for each gene
-results_list <- list()
-for (sym in target_genes) {
-  ens <- map_final$ensembl_base[match(sym, map_final$gene_symbol)]
-  if (!is.na(ens) && ens %in% present_ens) {
-    tag <- if (sym %in% ecDNA_genes_full) "ecDNA" else "mine"
-    results_list[[paste0(tag, "_", sym)]] <- run_expression_survival_ens(expr_long, tcga_clinical_escc, ens, sym, tag)
-  }
-}
+
+
+# merge the two data frames
+small_tcga_clinical_escc <- tcga_clinical_escc %>% select(Unique_Patient_Identifier, time_months, status) %>% distinct()
+combined <- inner_join(expr_long, small_tcga_clinical_escc, by = "Unique_Patient_Identifier")
+combined_combined <- combined %>% left_join(map_final, by = "ensembl_base")
+
+COX6C_df <- combined_combined %>% filter(gene_symbol == "COX6C")
+
+# split up the data into high and low
+res.cut <- surv_cutpoint(COX6C_df, time = "time_months", event = "status",
+  variables = ("expr"))
+summary(res.cut)
+
+plot(res.cut, "expr", palette = "npg")
+
+res.cat <- surv_categorize(res.cut)
+head(res.cat)
+
+# Fit survival curves and visualize
+fit <- survfit(Surv(time_months, status) ~expr, data = res.cat)
+ggsurvplot(fit, data = res.cat, risk.table = TRUE, conf.int = TRUE, pval = TRUE)
+
 
 # save results
 res_tbl <- Filter(Negate(is.null), results_list)
